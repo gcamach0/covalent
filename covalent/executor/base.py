@@ -27,6 +27,7 @@ import subprocess
 import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
+from subprocess import Popen
 from typing import Any, Callable, ContextManager, Dict, Iterable, List, Tuple
 
 import cloudpickle as pickle
@@ -247,10 +248,10 @@ class BaseExecutor(ABC):
 
             if len(out.stdout) != 0:
                 # These are print/log statements from the task.
-                print(out.stdout)
+                print(Popen.stdout)
 
             if out.returncode != 0:
-                app_log.warning(out.stderr)
+                app_log.warning(Popen.stderr)
                 return self._on_conda_env_fail(fn, args, kwargs, node_id)
 
         with open(result_filename, "rb") as f:
