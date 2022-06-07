@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Docs
 
 - Added new tutorial: Using Covalent with PennyLane for hybrid computation.
+- Added new tutorial: Using Covalent for ensemble classification with multiple devices
 
 ## [0.106.1] - 2022-06-01
 
