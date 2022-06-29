@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.117.0] - 2022-06-29
+
+### Authors
+@poojithurao
+
+### Changed
+
+- Added ensemble learning tutorial to ML tutorials
+
+### Added
+
+- Ensemble learning tutorial
+
 ## [0.116.0] - 2022-06-29
 ### Authors
 @Prasy12 
