@@ -23,7 +23,7 @@
 import inspect
 import operator
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Iterable, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Union
 
 from .._shared_files import logger
 from .._shared_files.context_managers import active_lattice_manager
@@ -39,6 +39,8 @@ from .._shared_files.defaults import (
     subscript_prefix,
 )
 from .._shared_files.utils import get_named_params, get_serialized_function_str
+from .depsbash import DepsBash
+from .depscall import DepsCall
 from .lattice import Lattice
 
 consumable_constraints = ["budget", "time_limit"]
@@ -329,6 +331,7 @@ class Electron:
         for k in self.metadata:
             if (
                 k not in consumable_constraints
+                and k in _DEFAULT_CONSTRAINT_VALUES
                 and self.get_metadata(k) is _DEFAULT_CONSTRAINT_VALUES[k]
             ):
                 self.set_metadata(k, active_lattice.get_metadata(k))
@@ -347,15 +350,17 @@ class Electron:
             named_args, named_kwargs = get_named_params(self.function, args, kwargs)
 
             # For positional arguments
-            for key, value in named_args.items():
+            # We use the fact that as of Python 3.6, dict order == insertion order
+            for arg_index, item in enumerate(named_args.items()):
+                key, value = item
                 self.connect_node_with_others(
-                    self.node_id, key, value, "arg", active_lattice.transport_graph
+                    self.node_id, key, value, "arg", arg_index, active_lattice.transport_graph
                 )
 
             # For keyword arguments
             for key, value in named_kwargs.items():
                 self.connect_node_with_others(
-                    self.node_id, key, value, "kwarg", active_lattice.transport_graph
+                    self.node_id, key, value, "kwarg", None, active_lattice.transport_graph
                 )
 
         return Electron(
@@ -370,6 +375,7 @@ class Electron:
         param_name: str,
         param_value: Union[Any, "Electron"],
         param_type: str,
+        arg_index: int,
         transport_graph: "_TransportGraph",
     ):
         """
@@ -388,27 +394,41 @@ class Electron:
 
         if isinstance(param_value, Electron):
             transport_graph.add_edge(
-                param_value.node_id, node_id, edge_name=param_name, param_type=param_type
+                param_value.node_id,
+                node_id,
+                edge_name=param_name,
+                param_type=param_type,
+                arg_index=arg_index,
             )
 
         elif isinstance(param_value, list):
             list_node = self.add_collection_node_to_graph(transport_graph, electron_list_prefix)
 
             for v in param_value:
-                self.connect_node_with_others(list_node, param_name, v, "kwarg", transport_graph)
+                self.connect_node_with_others(
+                    list_node, param_name, v, "kwarg", None, transport_graph
+                )
 
             transport_graph.add_edge(
-                list_node, node_id, edge_name=param_name, param_type=param_type
+                list_node,
+                node_id,
+                edge_name=param_name,
+                param_type=param_type,
+                arg_index=arg_index,
             )
 
         elif isinstance(param_value, dict):
             dict_node = self.add_collection_node_to_graph(transport_graph, electron_dict_prefix)
 
             for k, v in param_value.items():
-                self.connect_node_with_others(dict_node, k, v, "kwarg", transport_graph)
+                self.connect_node_with_others(dict_node, k, v, "kwarg", None, transport_graph)
 
             transport_graph.add_edge(
-                dict_node, node_id, edge_name=param_name, param_type=param_type
+                dict_node,
+                node_id,
+                edge_name=param_name,
+                param_type=param_type,
+                arg_index=arg_index,
             )
 
         else:
@@ -420,7 +440,11 @@ class Electron:
                 value=param_value,
             )
             transport_graph.add_edge(
-                parameter_node, node_id, edge_name=param_name, param_type=param_type
+                parameter_node,
+                node_id,
+                edge_name=param_name,
+                param_type=param_type,
+                arg_index=arg_index,
             )
 
     def add_collection_node_to_graph(self, graph: "_TransportGraph", prefix: str) -> int:
@@ -459,6 +483,9 @@ def electron(
         Union[List[Union[str, "BaseExecutor"]], Union[str, "BaseExecutor"]]
     ] = _DEFAULT_CONSTRAINT_VALUES["executor"],
     # Add custom metadata fields here
+    deps_bash: Union[DepsBash, List, str] = _DEFAULT_CONSTRAINT_VALUES["deps"].get("bash", []),
+    call_before: Union[List[DepsCall], DepsCall] = _DEFAULT_CONSTRAINT_VALUES["call_before"],
+    call_after: Union[List[DepsCall], DepsCall] = _DEFAULT_CONSTRAINT_VALUES["call_after"],
 ) -> Callable:
     """Electron decorator to be called upon a function. Returns a new :obj:`Electron <covalent._workflow.electron.Electron>` object.
 
@@ -469,6 +496,9 @@ def electron(
         backend: DEPRECATED: Same as `executor`.
         executor: Alternative executor object to be used by the electron execution. If not passed, the local
             executor is used by default.
+        deps_bash: An optional DepsBash object specifying a list of shell commands to run before `_func`
+        call_before: An optional list of DepsCall objects specifying python functions to invoke before the electron
+        call_after: An optional list of DepsCall objects specifying python functions to invoke after the electron
 
     Returns:
         :obj:`Electron <covalent._workflow.electron.Electron>` : Electron object inside which the decorated function exists.
@@ -481,8 +511,24 @@ def electron(
         )
         executor = backend
 
+    deps = {}
+
+    if isinstance(deps_bash, DepsBash):
+        deps["bash"] = deps_bash
+    if isinstance(deps_bash, list) or isinstance(deps_bash, str):
+        deps["bash"] = DepsBash(commands=deps_bash)
+
+    if isinstance(call_before, DepsCall):
+        call_before = [call_before]
+
+    if isinstance(call_after, DepsCall):
+        call_after = [call_after]
+
     constraints = {
         "executor": executor,
+        "deps": deps,
+        "call_before": call_before,
+        "call_after": call_after,
     }
 
     def decorator_electron(func=None):
