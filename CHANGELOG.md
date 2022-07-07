@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated RTD concepts, how-to-guides, and api docs with electron dependencies.
 
+### Changed
+
+- A task is now scheduled to run as soon as its parents are completed
+- Topologically sorting the graph is being deprecated
+
 ## [0.124.0] - 2022-07-07
 
 ### Authors
