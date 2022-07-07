@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Operations
+
+- Separate out running tests and uploading coverage report to circumvent bug in
+  retry action
+
 ## [0.124.0] - 2022-07-07
 
 ### Authors
